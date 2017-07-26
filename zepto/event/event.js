@@ -27,11 +27,12 @@
 
   specialEvents.click = specialEvents.mousedown = specialEvents.mouseup = specialEvents.mousemove = 'MouseEvents'
 
-  // Q：zid 有什么作用？
+  // 5. 给绑定事件的对应元素编号
+  // 使用编号将事件监听缓存到 handlers 中
   function zid(element) {
     return element._zid || (element._zid = _zid++)
   }
-  // 
+  // 10. 找到元素对应事件监听的那一个 handler 对象
   function findHandlers(element, event, fn, selector) {
     event = parse(event)
     if (event.ns) var matcher = matcherFor(event.ns)
@@ -39,6 +40,7 @@
       return handler
         && (!event.e  || handler.e == event.e)
         && (!event.ns || matcher.test(handler.ns))
+        // Q：这里为什么不直接使用 handler.fn === fn
         && (!fn       || zid(handler.fn) === zid(fn))
         && (!selector || handler.sel == selector)
     })
@@ -48,12 +50,13 @@
     var parts = ('' + event).split('.')
     return {e: parts[0], ns: parts.slice(1).sort().join(' ')}
   }
+  // 11. 
   function matcherFor(ns) {
     return new RegExp('(?:^| )' + ns.replace(' ', ' .* ?') + '(?: |$)')
   }
 
-  // Q：不知道这里是什么意思？
-  // 看上去像是修复 focus 相关的问题
+  // 7. focus 相关的是否冒泡的实现
+  // Q：
   function eventCapture(handler, captureSetting) {
     return handler.del &&
       (!focusinSupported && (handler.e in focus)) ||
@@ -61,6 +64,7 @@
   }
 
   /**
+   * 6. 修复 mouseover / focus 相关的问题
    * mouseenter -> mouseover
    * mouseleave -> mouseout
    * focus -> focusin
@@ -76,6 +80,7 @@
     var id = zid(element), set = (handlers[id] || (handlers[id] = []))
     events.split(/\s/).forEach(function(event){
       if (event == 'ready') return $(document).ready(fn)
+      // 将事件名称与命名空间拆开
       var handler   = parse(event)
       handler.fn    = fn
       handler.sel   = selector
@@ -87,15 +92,17 @@
       //   ns: 命名空间（使用空格隔开）,
       //   del: 委托函数 或者 可能是执行一次的函数,
       //   proxy: 代理函数,
-      //   i: 被绑定的顺序,
+      //   i: 对应回调函数数组中的位置,
       // }
 
       // emulate mouseenter, mouseleave
       // 模拟
-      // Q：不懂为什么要特殊处理？
-      // relatedTarget 是什么？
+      // mouseenter -> mouseover
+      // mouseleave -> mouseout
       if (handler.e in hover) fn = function(e){
         var related = e.relatedTarget
+        // 判断之前的节点 & 绑定的节点不存在包含关系、不相等
+        // 这里等于做了节流的操作
         if (!related || (related !== this && !$.contains(this, related)))
           return handler.fn.apply(this, arguments)
       }
@@ -103,11 +110,13 @@
       handler.del   = delegator
       var callback  = delegator || fn
       handler.proxy = function(e){
+        // 增强 event 对象
         e = compatible(e)
         if (e.isImmediatePropagationStopped()) return
         e.data = data
         // e._args 是在 .trigger() 的时候被用到
         var result = callback.apply(element, e._args == undefined ? [e] : [e].concat(e._args))
+        // return false === preventDefault() + e.stopPropagation()
         if (result === false) e.preventDefault(), e.stopPropagation()
         return result
       }
@@ -117,7 +126,10 @@
         element.addEventListener(realEvent(handler.e), handler.proxy, eventCapture(handler, capture))
     })
   }
-  function remove(element, events, fn, selector, capture){
+
+  // 9. 移除事件监听的真正函数
+  function remove(element, events, fn, selector, capture) {
+    // 找到DOM元素上面对应缓存的编号
     var id = zid(element)
     ;(events || '').split(/\s/).forEach(function(event){
       findHandlers(element, event, fn, selector).forEach(function(handler){
@@ -169,8 +181,9 @@
   
   // 3. 增强 proxy event 对象
   function compatible(event, source) {
-    // 存在 source 则一定会去增强 event
-    // 只有 event 且 event.isDefaultPrevented 判断是 false
+    // 1. 绑定事件监听时 - 通过原始的 event 来增强 proxy event 对象
+    // event 是 proxy event 而 source 是原始event
+    // 2. 不存在 source 参数，同时 event 没有被增强过
     if (source || !event.isDefaultPrevented) {
       source || (source = event)
 
@@ -197,7 +210,7 @@
         event.timeStamp || (event.timeStamp = Date.now())
       } catch (ignored) { }
 
-      // Q：这段是兼容代码？
+      // 判断是不是已经 preventDefault 被执行过了
       if (source.defaultPrevented !== undefined ? source.defaultPrevented :
           'returnValue' in source ? source.returnValue === false :
           source.getPreventDefault && source.getPreventDefault())
@@ -209,6 +222,7 @@
   // 2. 拓展 event 对象
   // 委托绑定事件监听的时候，这个函数会被执行
   function createProxy(event) {
+    // 保留原始的 event 对象在 originalEvent 上
     var key, proxy = { originalEvent: event }
     // 排除忽视的属性&没有值的属性 把所有的键值拷贝到代理对象上
     for (key in event)
@@ -236,7 +250,7 @@
   // 1. 阅读代码的入口
   // 参考API 参数的意义
   // event 所监听的事件 多个事件使用空格隔开 如果是对象 键值对分别是监听的事件 & 对应的回调函数
-  // selector css 选择器 当事件在匹配该选择器的元素上发起时 事件才会被触发 （事件委托、事件代理）
+  // selector CSS选择器 当事件在匹配该选择器的元素上发起时 事件才会被触发 （事件委托、事件代理）
   // data 会被挂载在 event.data 上面
   // callback 回调函数 （this 指向触发事件的元素） 事件处理程序返回 false 或者调用 .preventDefault() 将防止默认浏览器操作 如果直接传递 false 则代表 () => false
   $.fn.on = function(event, selector, data, callback, one){
@@ -266,7 +280,7 @@
     return $this.each(function(_, element){
       // 判断是不是执行一次之后自动移除
       if (one) autoRemove = function(e) {
-        // @to-read 这里需要移除事件的绑定
+        // 装饰器模式
         // Q：移除需要维持事件引用的一致
         remove(element, e.type, callback)
         return callback.apply(this, arguments)
@@ -277,6 +291,7 @@
       // e.target
       // e.liveFired = element
       // Q： match !== element
+      // 如果出现了 match === element 会有什么问题？
       if (selector) delegator = function(e){
         var evt, match = $(e.target).closest(selector, element).get(0)
         if (match && match !== element) {
@@ -286,12 +301,21 @@
         }
       }
 
+      // Zepto 只是增强了 event 对象，this 还是保留原始的对象
+      // Q：在这里只是在使用委托的事件绑定中增强了 event 对象
+
       add(element, event, callback, data, selector, delegator || autoRemove)
     })
   }
 
+  // 8. 移除事件监听
+  // event 所监听的事件名称 多个事件使用空格隔开 如果是对象 键值对分别是监听的事件 & 对应的回调函数
+  // selecor CSS选择器 当事件在匹配该选择器的元素上发起时 事件才会被触发 （事件委托、事件代理）
+  // callback 所要移除的事件监听函数 必须和绑定的事件监听函数是同样的引用
   $.fn.off = function(event, selector, callback){
     var $this = this
+
+    // 判断 event 是不是对象 对象需要循环获取监听事件&回调函数
     if (event && !isString(event)) {
       $.each(event, function(type, fn){
         $this.off(type, selector, fn)
@@ -299,6 +323,7 @@
       return $this
     }
 
+    // 函数参数的检查与修正
     if (!isString(selector) && !isFunction(callback) && callback !== false)
       callback = selector, selector = undefined
 
@@ -309,7 +334,11 @@
     })
   }
 
+  // 12. 模拟触发事件
+  // event 触发的事件类型 可以是字符串类型，也可以是通过 $.Event 定义的事件对象
+  // args 传递给事件监听的附加参数
   $.fn.trigger = function(event, args){
+    // $.isPlainObject 判断是不是空对象
     event = (isString(event) || $.isPlainObject(event)) ? $.Event(event) : compatible(event)
     event._args = args
     return this.each(function(){
@@ -323,6 +352,7 @@
 
   // triggers event handlers on current element just as if an event occurred,
   // doesn't trigger an actual event, doesn't bubble
+  // 14. 触发当前元素的对应事件监听，但是不冒泡
   $.fn.triggerHandler = function(event, args){
     var e, result
     this.each(function(i, element){
@@ -348,6 +378,7 @@
     }
   })
 
+  // 13. 
   $.Event = function(type, props) {
     if (!isString(type)) props = type, type = props.type
     var event = document.createEvent(specialEvents[type] || 'Events'), bubbles = true
