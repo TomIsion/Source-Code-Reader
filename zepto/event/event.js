@@ -51,6 +51,7 @@
     return {e: parts[0], ns: parts.slice(1).sort().join(' ')}
   }
   // 11. 
+  // Q：
   function matcherFor(ns) {
     return new RegExp('(?:^| )' + ns.replace(' ', ' .* ?') + '(?: |$)')
   }
@@ -281,7 +282,6 @@
       // 判断是不是执行一次之后自动移除
       if (one) autoRemove = function(e) {
         // 装饰器模式
-        // Q：移除需要维持事件引用的一致
         remove(element, e.type, callback)
         return callback.apply(this, arguments)
       }
@@ -290,8 +290,9 @@
       // this = match = selector
       // e.target
       // e.liveFired = element
-      // Q： match !== element
+      // @nice： match !== element
       // 如果出现了 match === element 会有什么问题？
+      // 这里为了避免出现 triggerHandler 导致委托事件也被触发
       if (selector) delegator = function(e){
         var evt, match = $(e.target).closest(selector, element).get(0)
         if (match && match !== element) {
@@ -302,8 +303,7 @@
       }
 
       // Zepto 只是增强了 event 对象，this 还是保留原始的对象
-      // Q：在这里只是在使用委托的事件绑定中增强了 event 对象
-
+      // 在这里只是在使用委托的事件绑定中增强了 event 对象
       add(element, event, callback, data, selector, delegator || autoRemove)
     })
   }
