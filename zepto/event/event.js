@@ -203,9 +203,9 @@
         event[predicate] = returnFalse
       })
 
-      // 事件绑定的时间戳
-      // Q：这个东西有什么作用？
-      // 保证执行的顺序？
+      // 事件触发的时间戳
+      // 兼容 PC - Safari 手机端等等
+      // 方便 touch 相关事件的计算 / 触发
       try {
         event.timeStamp || (event.timeStamp = Date.now())
       } catch (ignored) { }
@@ -353,6 +353,7 @@
   // triggers event handlers on current element just as if an event occurred,
   // doesn't trigger an actual event, doesn't bubble
   // 14. 触发当前元素的对应事件监听，但是不冒泡
+  // 和 trigger 的区别就在于使用原生事件去触发还是直接拿出函数来执行
   $.fn.triggerHandler = function(event, args){
     var e, result
     this.each(function(i, element){
@@ -361,6 +362,7 @@
       e.target = element
       $.each(findHandlers(element, event.type || event), function(i, handler){
         result = handler.proxy(e)
+        // return false 也停止了循环
         if (e.isImmediatePropagationStopped()) return false
       })
     })
@@ -378,7 +380,17 @@
     }
   })
 
-  // 13. 
+  // 13. 创建并且初始化一个指定的 DOM 事件
+  /**
+   * type 表示事件的名称
+   * props 表示描述事件监听触发的附加属性 冒泡/捕获
+   * 或者只传递一个参数 对象形式
+   * {
+   *   type: 事件名称
+   *   bubbles: 冒泡/捕获
+   *   ...addInfos: 附加属性
+   * }
+   */
   $.Event = function(type, props) {
     if (!isString(type)) props = type, type = props.type
     var event = document.createEvent(specialEvents[type] || 'Events'), bubbles = true
