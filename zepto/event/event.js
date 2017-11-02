@@ -57,7 +57,6 @@
   }
 
   // 7. focus 相关的是否冒泡的实现
-  // Q：
   function eventCapture(handler, captureSetting) {
     return handler.del &&
       (!focusinSupported && (handler.e in focus)) ||
@@ -221,7 +220,7 @@
   }
 
   // 2. 拓展 event 对象
-  // 委托绑定事件监听的时候，这个函数会被执行
+  // 委托触发事件监听的时候，这个函数会被执行
   function createProxy(event) {
     // 保留原始的 event 对象在 originalEvent 上
     var key, proxy = { originalEvent: event }
